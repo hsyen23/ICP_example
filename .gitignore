@@ -1,1 +1,1 @@
-git rm --cached .ipynb_checkpoints
+git rm -r --cached .
