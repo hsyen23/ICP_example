@@ -144,6 +144,12 @@ def draw_correspondencies(p, q, pair, ax):
         x = [p[0, i], q[0, j]]
         y = [p[1, i], q[1, j]]
         ax.plot(x, y, color = 'grey')
+        
+def compute_error(p,q, pair):
+    error = 0.0
+    for i, j in pair:
+        error += get_l2Norm(p[:,i], q[:,j])
+    return error
 ```
 
 
@@ -230,15 +236,16 @@ p = generate_data(num, R, T)
 q = generate_data(num)
 
 show_frame = [1, 3, 5]
+vanilla_error = []
 # 5 is enough for convergence
-for i in range(5):
+for i in range(10):
     central_p = centralize(p,q)
     pair = find_closest_pair(central_p, q)
 
     cal_R, cal_t = compute_R_t(p, q, pair, pn)
     # shift p to new location
     p = cal_R @ p + cal_t
-    
+    vanilla_error.append(compute_error(p, q, pair))
     if i+1 in show_frame:
         ax = plot_data(q, p, 'q', "p'", 8, 4)
         ax.set_title('iteration: {}'.format(i+1))
@@ -281,7 +288,7 @@ def Jacobian(point, guess):
     J[1,2] = np.cos(theta) * point[0] - np.sin(theta) * point[1]
     return J
 
-def errorVector(p, q, guess, pn):
+def errorVector(p, q, guess):
     tx = guess[0,0]
     ty = guess[1,0]
     T = np.array([[tx],[ty]])
@@ -292,7 +299,7 @@ def errorVector(p, q, guess, pn):
     xn = p.reshape([2,1])
     yn = q.reshape([2,1])
     
-    error = (R @ xn + T - yn) * pn
+    error = (R @ xn + T - yn)
     return error
 
 def generate_R_t(guess):
@@ -311,8 +318,8 @@ def point_to_point(p, q, pair, initial_guess, pn):
     H = np.zeros([3,3])
     b = np.zeros([1,3])
     for i, j in pair:
-        J = Jacobian(p[:,i], initial_guess)
-        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i])
+        J = Jacobian(p[:,i], initial_guess) * pn[i]
+        error = errorVector(p[:,i], q[:,j], initial_guess) * pn[i]
         
         H += J.transpose() @ J
         b += error.transpose() @ J
@@ -342,10 +349,10 @@ q = generate_data(num)
 initial_guess = np.array([[0.0],
                          [0.0],
                          [0.0]])
-
+p2point_error = []
 show_frame = [1, 3, 5, 7]
 # 5 is enough for convergence
-for i in range(7):
+for i in range(10):
     central_p = centralize(p,q)
     pair = find_closest_pair(central_p, q)
 
@@ -353,7 +360,7 @@ for i in range(7):
     cal_R, cal_t = generate_R_t(initial_guess)
     # shift p to new location
     p = cal_R @ p + cal_t
-    
+    p2point_error.append(compute_error(p, q, pair))
     if i+1 in show_frame:
         ax = plot_data(q, p, 'q', "p'", 8, 4)
         ax.set_title('iteration: {}'.format(i+1))
@@ -414,7 +421,7 @@ def Jacobian(point, guess, normal):
     
     return J
 
-def errorVector(p, q, guess, pn, normal):
+def errorVector(p, q, guess, normal):
     tx = guess[0,0]
     ty = guess[1,0]
     T = np.array([[tx],[ty]])
@@ -435,9 +442,9 @@ def point_to_plan(p, q, pair, initial_guess, pn):
     H = np.zeros([3,3])
     b = np.zeros([1,3])
     for i, j in pair:
-        normal = get_normal(p[:,i])
-        J = Jacobian(p[:,i], initial_guess, normal)
-        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i], normal)
+        normal = get_normal(p[:,i]) 
+        J = Jacobian(p[:,i], initial_guess, normal) * pn[i]
+        error = errorVector(p[:,i], q[:,j], initial_guess, normal) * pn[i]
         
         H += J.transpose() @ J
         b += error.transpose() @ J
@@ -467,10 +474,10 @@ q = generate_data(num)
 initial_guess = np.array([[0.0],
                          [0.0],
                          [0.0]])
-
+p2plane_error = []
 show_frame = [1, 3, 5, 7]
 # 5 is enough for convergence
-for i in range(7):
+for i in range(10):
     central_p = centralize(p,q)
     pair = find_closest_pair(central_p, q)
 
@@ -478,7 +485,7 @@ for i in range(7):
     cal_R, cal_t = generate_R_t(initial_guess)
     # shift p to new location
     p = cal_R @ p + cal_t
-    
+    p2plane_error.append(compute_error(p, q, pair))
     if i+1 in show_frame:
         ax = plot_data(q, p, 'q', "p'", 8, 4)
         ax.set_title('iteration: {}'.format(i+1))
@@ -528,7 +535,7 @@ def Jacobian(point, guess, normal1, normal2):
     
     return J
 
-def errorVector(p, q, guess, pn, normal1, normal2):
+def errorVector(p, q, guess, normal1, normal2):
     tx = guess[0,0]
     ty = guess[1,0]
     T = np.array([[tx],[ty]])
@@ -551,8 +558,8 @@ def point_to_plan_sym(p, q, pair, initial_guess, pn):
     for i, j in pair:
         normal1 = get_normal(p[:,i])
         normal2 = get_normal(q[:,j])
-        J = Jacobian(p[:,i], initial_guess, normal1, normal2)
-        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i], normal1, normal2)
+        J = Jacobian(p[:,i], initial_guess, normal1, normal2) * pn[i]
+        error = errorVector(p[:,i], q[:,j], initial_guess, normal1, normal2) * pn[i]
         
         H += J.transpose() @ J
         b += error.transpose() @ J
@@ -582,10 +589,10 @@ q = generate_data(num)
 initial_guess = np.array([[0.0],
                          [0.0],
                          [0.0]])
-
+p2plane_sym_error = []
 show_frame = [1, 3, 5, 7]
 # 5 is enough for convergence
-for i in range(7):
+for i in range(10):
     central_p = centralize(p,q)
     pair = find_closest_pair(central_p, q)
 
@@ -593,7 +600,7 @@ for i in range(7):
     cal_R, cal_t = generate_R_t(initial_guess)
     # shift p to new location
     p = cal_R @ p + cal_t
-    
+    p2plane_sym_error.append(compute_error(p, q, pair))
     if i+1 in show_frame:
         ax = plot_data(q, p, 'q', "p'", 8, 4)
         ax.set_title('iteration: {}'.format(i+1))
@@ -621,6 +628,251 @@ for i in range(7):
 
     
 ![png](icp_example_files/icp_example_29_3.png)
+    
+
+
+## error comparision
+
+
+```python
+fig = plt.figure(figsize=(10, 6))
+ax = fig.add_subplot(111)
+iteration = range(1, 11)
+ax.plot(iteration, vanilla_error, label = "vanilla ICP #svd", color = 'blue')
+ax.plot(iteration, p2point_error, label = "point to point", color = 'red')
+ax.plot(iteration, p2plane_error, label = "point to plane", color = 'orange')
+ax.plot(iteration, p2plane_sym_error, label = "point to plane symmetrical", color = 'grey')
+ax.legend()
+ax.set_xlabel("Iteration")
+ax.set_ylabel("Error")
+plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_31_0.png)
+    
+
+
+### use robust kernel to reject outlier (based on point to point)
+
+
+```python
+# generate data
+num = 30
+angle = np.pi / 4
+R = np.array([[np.cos(angle), -np.sin(angle)],
+                  [np.sin(angle), np.cos(angle)]])
+T = np.array([[2],[5]])
+
+p = generate_data(num, R, T)
+p[:,10] = np.array([-10, 30])
+p[:,20] = np.array([0, 40])
+q = generate_data(num)
+
+show_frame = [1, 3, 5]
+
+for i in range(5):
+    central_p = centralize(p,q)
+    pair = find_closest_pair(central_p, q)
+
+    cal_R, cal_t = compute_R_t(p, q, pair, pn)
+    # shift p to new location
+    p = cal_R @ p + cal_t
+    
+    if i+1 in show_frame:
+        ax = plot_data(q, p, 'q', "p'", 8, 4)
+        ax.set_title('iteration: {}'.format(i+1))
+        plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_33_0.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_33_1.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_33_2.png)
+    
+
+
+
+```python
+def Jacobian(point, guess):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    theta = guess[2,0]
+    J = np.zeros([2, 3])
+    J[0,0] = 1
+    J[1,1] = 1
+    J[0,2] = -np.sin(theta) * point[0] - np.cos(theta) * point[1]
+    J[1,2] = np.cos(theta) * point[0] - np.sin(theta) * point[1]
+    return J
+
+def errorVector(p, q, guess):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    T = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    # match dimension
+    xn = p.reshape([2,1])
+    yn = q.reshape([2,1])
+    
+    error = (R @ xn + T - yn)
+    return error
+
+def generate_R_t(guess):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    t = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    return R, t
+
+def centralize_with_weight(p, q, pn):
+    # get center
+    p0 = np.zeros([2,1])
+    p0[0,0] = (p[0, :] * pn).sum() / pn.sum()
+    p0[1,0] = (p[1, :] * pn).sum() / pn.sum()
+    
+    q0 = np.zeros([2,1])
+    q0[0,0] = q[0, :].sum() / q.shape[1]
+    q0[1,0] = q[1, :].sum() / q.shape[1]
+    
+    # move p to center of q
+    p = p - p0 + q0
+    return p
+```
+
+
+```python
+# set threshold for error
+def point_to_point_threshold(p, q, pair, initial_guess, pn, threshold):
+    H = np.zeros([3,3])
+    b = np.zeros([1,3])
+    for i, j in pair:
+        error = errorVector(p[:,i], q[:,j], initial_guess)
+
+        if (np.linalg.norm(error) >= threshold):
+            pn[i] = 0.0
+        else:
+            pn[i] = 1.0
+        J = Jacobian(p[:,i], initial_guess) * pn[i]
+        H += J.transpose() @ J 
+        b += (error.transpose() * pn[i]) @ J 
+    
+    # -b' = H * delta_parameter
+    delta = (- b @ np.linalg.inv(H)).transpose()
+    
+    update_guess = initial_guess + delta
+    return update_guess
+```
+
+
+```python
+# equal weights pn
+pn = np.ones(num)
+
+# generate data
+num = 30
+angle = np.pi / 4
+R = np.array([[np.cos(angle), -np.sin(angle)],
+                  [np.sin(angle), np.cos(angle)]])
+T = np.array([[2],[5]])
+
+p = generate_data(num, R, T)
+p[:,10] = np.array([-10, 30])
+p[:,20] = np.array([0, 40])
+q = generate_data(num)
+
+initial_guess = np.array([[0.0],
+                         [0.0],
+                         [0.0]])
+
+show_frame = [1, 3, 5, 7,30]
+# 5 is enough for convergence
+for i in range(10):
+    central_p = centralize_with_weight(p,q,pn)
+    pair = find_closest_pair(central_p, q)
+
+    initial_guess = point_to_point_threshold(p, q, pair, initial_guess, pn, 15)
+    cal_R, cal_t = generate_R_t(initial_guess)
+    # shift p to new location
+    p = cal_R @ p + cal_t
+    
+    ax = plot_data(q, p, 'q', "p'", 8, 4)
+    ax.set_title('iteration: {}'.format(i+1))
+    plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_36_0.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_1.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_2.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_3.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_4.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_5.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_6.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_7.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_8.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_36_9.png)
     
 
 
