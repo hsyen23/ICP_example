@@ -384,10 +384,245 @@ for i in range(7):
     
 
 
+### point to plane
+
 
 ```python
-
+def get_normal(point):
+    nx = - point[1]
+    ny = point[0]
+    
+    if nx == 0 and ny == 0:
+        return np.array([[0],[1]])
+    return np.array([[nx],[ny]]) / np.sqrt(nx**2 + ny**2)
 ```
+
+
+```python
+def Jacobian(point, guess, normal):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    theta = guess[2,0]
+    dR = np.array([[-np.sin(theta), -np.cos(theta)],
+                 [np.cos(theta), -np.sin(theta)]])
+    J = np.zeros([1, 3])
+    J[0,0] = normal[0,0]
+    J[0,1] = normal[1,0]
+    # match dimension
+    x = point.reshape([2,1])
+    J[0,2] = normal.transpose() @ dR @ x
+    
+    return J
+
+def errorVector(p, q, guess, pn, normal):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    T = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    # match dimension
+    xn = p.reshape([2,1])
+    yn = q.reshape([2,1])
+    
+    error = (normal.transpose() @ (R @ xn + T - yn))
+    return error
+```
+
+
+```python
+def point_to_plan(p, q, pair, initial_guess, pn):
+    H = np.zeros([3,3])
+    b = np.zeros([1,3])
+    for i, j in pair:
+        normal = get_normal(p[:,i])
+        J = Jacobian(p[:,i], initial_guess, normal)
+        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i], normal)
+        
+        H += J.transpose() @ J
+        b += error.transpose() @ J
+    
+    # -b' = H * delta_parameter
+    delta = (- b @ np.linalg.inv(H)).transpose()
+    
+    update_guess = initial_guess + delta
+    return update_guess
+```
+
+
+```python
+# equal weights pn
+pn = np.ones(num)
+
+# generate data
+num = 30
+angle = np.pi / 4
+R = np.array([[np.cos(angle), -np.sin(angle)],
+                  [np.sin(angle), np.cos(angle)]])
+T = np.array([[2],[5]])
+
+p = generate_data(num, R, T)
+q = generate_data(num)
+
+initial_guess = np.array([[0.0],
+                         [0.0],
+                         [0.0]])
+
+show_frame = [1, 3, 5, 7]
+# 5 is enough for convergence
+for i in range(7):
+    central_p = centralize(p,q)
+    pair = find_closest_pair(central_p, q)
+
+    initial_guess = point_to_plan(p, q, pair, initial_guess, pn)
+    cal_R, cal_t = generate_R_t(initial_guess)
+    # shift p to new location
+    p = cal_R @ p + cal_t
+    
+    if i+1 in show_frame:
+        ax = plot_data(q, p, 'q', "p'", 8, 4)
+        ax.set_title('iteration: {}'.format(i+1))
+        plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_25_0.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_25_1.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_25_2.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_25_3.png)
+    
+
+
+### point to plane symmetric
+
+
+```python
+def Jacobian(point, guess, normal1, normal2):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    theta = guess[2,0]
+    dR = np.array([[-np.sin(theta), -np.cos(theta)],
+                 [np.cos(theta), -np.sin(theta)]])
+    J = np.zeros([1, 3])
+    J[0,0] = normal1[0,0] + normal2[0,0]
+    J[0,1] = normal1[1,0] + normal2[1,0]
+    # match dimension
+    x = point.reshape([2,1])
+    J[0,2] = (normal1.transpose() @ dR @ x) + (normal2.transpose() @ dR @ x)
+    
+    return J
+
+def errorVector(p, q, guess, pn, normal1, normal2):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    T = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    # match dimension
+    xn = p.reshape([2,1])
+    yn = q.reshape([2,1])
+    
+    error = ((normal1.transpose() + normal2.transpose()) @ (R @ xn + T - yn))
+    return error
+```
+
+
+```python
+def point_to_plan_sym(p, q, pair, initial_guess, pn):
+    H = np.zeros([3,3])
+    b = np.zeros([1,3])
+    for i, j in pair:
+        normal1 = get_normal(p[:,i])
+        normal2 = get_normal(q[:,j])
+        J = Jacobian(p[:,i], initial_guess, normal1, normal2)
+        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i], normal1, normal2)
+        
+        H += J.transpose() @ J
+        b += error.transpose() @ J
+    
+    # -b' = H * delta_parameter
+    delta = (- b @ np.linalg.inv(H)).transpose()
+    
+    update_guess = initial_guess + delta
+    return update_guess
+```
+
+
+```python
+# equal weights pn
+pn = np.ones(num)
+
+# generate data
+num = 30
+angle = np.pi / 4
+R = np.array([[np.cos(angle), -np.sin(angle)],
+                  [np.sin(angle), np.cos(angle)]])
+T = np.array([[2],[5]])
+
+p = generate_data(num, R, T)
+q = generate_data(num)
+
+initial_guess = np.array([[0.0],
+                         [0.0],
+                         [0.0]])
+
+show_frame = [1, 3, 5, 7]
+# 5 is enough for convergence
+for i in range(7):
+    central_p = centralize(p,q)
+    pair = find_closest_pair(central_p, q)
+
+    initial_guess = point_to_plan_sym(p, q, pair, initial_guess, pn)
+    cal_R, cal_t = generate_R_t(initial_guess)
+    # shift p to new location
+    p = cal_R @ p + cal_t
+    
+    if i+1 in show_frame:
+        ax = plot_data(q, p, 'q', "p'", 8, 4)
+        ax.set_title('iteration: {}'.format(i+1))
+        plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_29_0.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_29_1.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_29_2.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_29_3.png)
+    
+
 
 
 ```python
