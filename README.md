@@ -232,8 +232,8 @@ q = generate_data(num)
 show_frame = [1, 3, 5]
 # 5 is enough for convergence
 for i in range(5):
-    p = centralize(p,q)
-    pair = find_closest_pair(p, q)
+    central_p = centralize(p,q)
+    pair = find_closest_pair(central_p, q)
 
     cal_R, cal_t = compute_R_t(p, q, pair, pn)
     # shift p to new location
@@ -263,6 +263,131 @@ for i in range(5):
 ![png](icp_example_files/icp_example_15_2.png)
     
 
+
+# 3. non-linear least square
+
+### point to point
+
+
+```python
+def Jacobian(point, guess):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    theta = guess[2,0]
+    J = np.zeros([2, 3])
+    J[0,0] = 1
+    J[1,1] = 1
+    J[0,2] = -np.sin(theta) * point[0] - np.cos(theta) * point[1]
+    J[1,2] = np.cos(theta) * point[0] - np.sin(theta) * point[1]
+    return J
+
+def errorVector(p, q, guess, pn):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    T = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    # match dimension
+    xn = p.reshape([2,1])
+    yn = q.reshape([2,1])
+    
+    error = (R @ xn + T - yn) * pn
+    return error
+
+def generate_R_t(guess):
+    tx = guess[0,0]
+    ty = guess[1,0]
+    t = np.array([[tx],[ty]])
+    theta = guess[2,0]
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                 [np.sin(theta), np.cos(theta)]])
+    return R, t
+```
+
+
+```python
+def point_to_point(p, q, pair, initial_guess, pn):
+    H = np.zeros([3,3])
+    b = np.zeros([1,3])
+    for i, j in pair:
+        J = Jacobian(p[:,i], initial_guess)
+        error = errorVector(p[:,i], q[:,j], initial_guess, pn[i])
+        
+        H += J.transpose() @ J
+        b += error.transpose() @ J
+    
+    # -b' = H * delta_parameter
+    delta = (- b @ np.linalg.inv(H)).transpose()
+    
+    update_guess = initial_guess + delta
+    return update_guess
+```
+
+
+```python
+# equal weights pn
+pn = np.ones(num)
+
+# generate data
+num = 30
+angle = np.pi / 4
+R = np.array([[np.cos(angle), -np.sin(angle)],
+                  [np.sin(angle), np.cos(angle)]])
+T = np.array([[2],[5]])
+
+p = generate_data(num, R, T)
+q = generate_data(num)
+
+initial_guess = np.array([[0.0],
+                         [0.0],
+                         [0.0]])
+
+show_frame = [1, 3, 5, 7]
+# 5 is enough for convergence
+for i in range(7):
+    central_p = centralize(p,q)
+    pair = find_closest_pair(central_p, q)
+
+    initial_guess = point_to_point(p, q, pair, initial_guess, pn)
+    cal_R, cal_t = generate_R_t(initial_guess)
+    # shift p to new location
+    p = cal_R @ p + cal_t
+    
+    if i+1 in show_frame:
+        ax = plot_data(q, p, 'q', "p'", 8, 4)
+        ax.set_title('iteration: {}'.format(i+1))
+        plt.show()
+```
+
+
+    
+![png](icp_example_files/icp_example_20_0.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_20_1.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_20_2.png)
+    
+
+
+
+    
+![png](icp_example_files/icp_example_20_3.png)
+    
+
+
+
+```python
+
+```
 
 
 ```python
